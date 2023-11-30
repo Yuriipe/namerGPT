@@ -30,7 +30,7 @@ var (
 	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
 	Model            = "gpt-3.5-turbo-1106" //"gpt-3.5-turbo-1106"
 	Language         = "french"
-	SourceFile       = "/home/yubo/Documents/golang_projects/namerGPT/db/tested.csv"
+	SourceFile       = `E:\golang_projects\namerGPT\db\tested.csv`
 	NameQuery        = "translate to " + Language
 	DescriptQuery    = "generate produkt description in" + Language + "for:"
 	TokenLimName     = 30
