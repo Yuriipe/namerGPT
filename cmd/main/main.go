@@ -20,43 +20,41 @@ type Product struct {
 	Description string `csv:"opispl"`
 }
 
-var (
-	NumRows          int
-	responseFileName = "resp_" + Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
-	Products         = []*Product{}
-	Client           = resty.New()
-	// "gpt-3.5-turbo-0301" - 3m 25s : 90 v : 30 t : 0.2 temp
-	// "gpt-3.5-turbo-16k-0613" - 5m 14s : 90 v : 30 t : 0.2 temp
-	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
-	Model            = "gpt-3.5-turbo-1106" //"gpt-3.5-turbo-1106"
-	Language         = "french"
-	SourceFile       = `E:\golang_projects\namerGPT\db\tested.csv`
-	NameQuery        = "translate to " + Language
-	DescriptQuery    = "generate produkt description in" + Language + "for:"
-	TokenLimName     = 30
-	TokenLimDescript = 200
-	Temp             = 0.2
-)
+type NamerGPTConfig struct {
+	NameQuery        string
+	DescriptQuery    string
+	Model            string
+	Language         string
+	SourceFile       string
+	TokenLimName     int
+	TokenLimDescript int
+	Temp             float64
+	APIKey           string
+	ResponseFileName string
+	Debug            bool
+}
+
+type NamerGPT struct {
+	cfg   NamerGPTConfig
+	resty *resty.Client
+}
 
 const (
 	apiEndpoint = "https://api.openai.com/v1/chat/completions"
-	// Use your API KEY here
-	apiKey = "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"
 )
 
-func QuestionGPT(query string, tokenLimit int) string {
-
-	response, err := Client.R().
-		SetAuthToken(apiKey).
+func (gpt *NamerGPT) questionGPT(query string, tokenLimit int) string {
+	response, err := gpt.resty.R().
+		SetAuthToken(gpt.cfg.APIKey).
 		SetHeader("Content-Type", "application/json").
 		SetBody(map[string]interface{}{
-			"model": Model,
+			"model": gpt.cfg.Model,
 			"messages": []interface{}{map[string]interface{}{
 				"role":    "user",
 				"content": query,
 			}},
 			"max_tokens":  tokenLimit,
-			"temperature": Temp,
+			"temperature": gpt.cfg.Temp,
 		}).
 		Post(apiEndpoint)
 
@@ -79,42 +77,23 @@ func QuestionGPT(query string, tokenLimit int) string {
 
 }
 
-func changeName(n string, wg *sync.WaitGroup, result chan<- string) {
+func (gpt *NamerGPT) changeName(n string, wg *sync.WaitGroup, result chan<- string) {
 	defer wg.Done()
 
-	q := NameQuery + n
-	t := TokenLimName
-	result <- QuestionGPT(q, t)
+	q := gpt.cfg.NameQuery + n
+	t := gpt.cfg.TokenLimName
+	result <- gpt.questionGPT(q, t)
 }
 
-func generateDescription(n string, wg *sync.WaitGroup, result chan<- string) {
+func (gpt *NamerGPT) generateDescription(n string, wg *sync.WaitGroup, result chan<- string) {
 	defer wg.Done()
 
-	q := DescriptQuery + n
-	t := TokenLimDescript
-	result <- QuestionGPT(q, t)
+	q := gpt.cfg.DescriptQuery + n
+	t := gpt.cfg.TokenLimDescript
+	result <- gpt.questionGPT(q, t)
 }
 
-func countRows(s string) int {
-	file, err := os.OpenFile(s, os.O_RDONLY, 0)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	// count the number of rows in csv file
-	reader := csv.NewReader(file)
-
-	rows, err := reader.ReadAll()
-	if err != nil {
-		panic("Can't count the number of rows")
-	}
-
-	NumRows := len(rows)
-	fmt.Println(NumRows)
-	return NumRows
-}
-
-func processGPTQuery(product Product, csvWriter *csv.Writer, wg *sync.WaitGroup) {
+func (gpt *NamerGPT) Process(product Product, csvWriter *csv.Writer, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	newName := make(chan string)
@@ -123,8 +102,8 @@ func processGPTQuery(product Product, csvWriter *csv.Writer, wg *sync.WaitGroup)
 	var innerWg sync.WaitGroup
 
 	innerWg.Add(2)
-	go changeName(product.Name, &innerWg, newName)
-	go generateDescription(product.Name, &innerWg, newDesc)
+	go gpt.changeName(product.Name, &innerWg, newName)
+	go gpt.generateDescription(product.Name, &innerWg, newDesc)
 
 	go func() {
 		innerWg.Wait()
@@ -137,30 +116,59 @@ func processGPTQuery(product Product, csvWriter *csv.Writer, wg *sync.WaitGroup)
 
 	res := []string{strconv.Itoa(product.ID), name, desc}
 	_ = csvWriter.Write(res)
+	if gpt.cfg.Debug {
+		fmt.Println(res)
+	}
 }
 
 // func speedGPTTest() string {}
 
 func main() {
-	// execution timer
-	start := time.Now()
-	NumRows = countRows(SourceFile) - 1
-
-	file, err := os.OpenFile(SourceFile, os.O_RDONLY, 0)
-	if err != nil {
+	if err := doMain(); err != nil {
 		panic(err)
+	}
+}
+
+func doMain() error {
+	// execution timer
+
+	// "gpt-3.5-turbo-0301" - 3m 25s : 90 v : 30 t : 0.2 temp
+	// "gpt-3.5-turbo-16k-0613" - 5m 14s : 90 v : 30 t : 0.2 temp
+	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
+	cfg := NamerGPTConfig{
+		APIKey:           "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",
+		Model:            "gpt-3.5-turbo-1106",
+		Language:         "french",
+		SourceFile:       "db/tested.csv",
+		TokenLimName:     30,
+		TokenLimDescript: 200,
+		Temp:             0.2,
+	}
+	cfg.NameQuery = "translate to " + cfg.Language
+	cfg.DescriptQuery = "generate produkt description in" + cfg.Language + "for:"
+	cfg.ResponseFileName = "resp_" + cfg.Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
+
+	gpt := &NamerGPT{cfg: cfg, resty: resty.New()}
+
+	start := time.Now()
+
+	file, err := os.OpenFile(cfg.SourceFile, os.O_RDONLY, 0)
+	if err != nil {
+		return err
 	}
 	defer file.Close()
 
+	products := []*Product{}
+
 	// manipulate file for struct purposes
-	if err := gocsv.UnmarshalFile(file, &Products); err != nil {
-		panic(err)
+	if err := gocsv.UnmarshalFile(file, &products); err != nil {
+		return err
 	}
 
 	// creating new file to write csv values
-	intoFile, err := os.Create(responseFileName)
+	intoFile, err := os.Create(cfg.ResponseFileName)
 	if err != nil {
-		panic("File was not created. Check settings")
+		return fmt.Errorf("file was not created. Check settings")
 	}
 	defer intoFile.Close()
 
@@ -172,9 +180,9 @@ func main() {
 	var wg sync.WaitGroup
 	//processing query to chat GPT and writing product data to csv
 
-	for _, product := range Products {
+	for _, product := range products {
 		wg.Add(1)
-		go processGPTQuery(*product, csvWriter, &wg)
+		gpt.Process(*product, csvWriter, &wg)
 	}
 
 	wg.Wait()
@@ -183,4 +191,6 @@ func main() {
 
 	execution := time.Since(start)
 	fmt.Println(execution)
+	return nil
+
 }
