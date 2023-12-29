@@ -1,4 +1,4 @@
-module main.go
+module namerGPT
 
 go 1.21.4
 
