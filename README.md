@@ -2,14 +2,14 @@ The following app is used to  translate and create product descriptions in diffe
 OpenAI token is required.
 
 "cfg.json" options explained:
-    "model":"gpt-3.5-turbo-1106" - default gpt processor model
+	"model":"gpt-3.5-turbo-1106" - default gpt processor model
 	"language":"english" - default language
 	"sourceFile":"db/example.csv" - source file path and name (if the file is changed, change the filename only)
 	"tokenLimName":30 - response product name token limit
-    "tokenLimDescript":200 - response product description token limit
-    "temp":0.2 - creativity level (0.1 - the least creative, 1 - the most creative)
+	"tokenLimDescript":200 - response product description token limit
+	"temp":0.2 - creativity level (0.1 - the least creative, 1 - the most creative)
 	"APIKey":"YOUR_OPENAI_API_TOKEN" - change the desription to your token
-    "APIEndpoint":"https://api.openai.com/v1/chat/completions" - default chat endpoint
+	"APIEndpoint":"https://api.openai.com/v1/chat/completions" - default chat endpoint
 
 "example.csv" shows the requred input format (only formated csv files are supported) - fill according to your preferences and needs
 
