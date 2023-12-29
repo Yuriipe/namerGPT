@@ -19,7 +19,7 @@ import (
 type Product struct {
 	ID          int    `csv:"id"`
 	Name        string `csv:"name"`
-	Description string `csv:"opispl"`
+	Description string `csv:"description"`
 }
 
 type NamerGPTConfig struct {
