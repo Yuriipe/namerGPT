@@ -22,6 +22,7 @@ OpenAI token is required.
 "example.csv" shows the requred input format (only formated csv files are supported) - fill according to your preferences and needs
 
 some GPT models estimated processing time (v - values, t - token limit for single value, temp - response temperature)
+
 	// "gpt-3.5-turbo-0301" - 3m 25s : 90 v : 30 t : 0.2 temp
 	// "gpt-3.5-turbo-16k-0613" - 5m 14s : 90 v : 30 t : 0.2 temp
 	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
