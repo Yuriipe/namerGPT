@@ -130,12 +130,8 @@ func main() {
 }
 
 func doMain() error {
-	// execution timer
-
 	fmt.Println("Start processing")
-	// "gpt-3.5-turbo-0301" - 3m 25s : 90 v : 30 t : 0.2 temp
-	// "gpt-3.5-turbo-16k-0613" - 5m 14s : 90 v : 30 t : 0.2 temp
-	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
+
 	cfg := NamerGPTConfig{}
 
 	// getting environmental variables
@@ -145,10 +141,6 @@ func doMain() error {
 	}
 
 	gpt := &NamerGPT{cfg: cfg, resty: resty.New()}
-
-	// cfg.NameQuery = "translate to " + cfg.Language
-	// cfg.DescriptQuery = "generate produkt description in" + cfg.Language + "for:" + cfg.NameQuery
-	cfg.ResponseFileName = "resp_" + cfg.Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
 
 	start := time.Now()
 
@@ -166,6 +158,7 @@ func doMain() error {
 	}
 
 	// creating new file to write csv values
+	cfg.ResponseFileName = "resp_" + cfg.Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
 	fmt.Printf("Creating new csv response file: %s\n", cfg.ResponseFileName)
 	intoFile, err := os.Create(cfg.ResponseFileName)
 	if err != nil {
@@ -190,7 +183,7 @@ func doMain() error {
 	csvWriter.Flush()
 
 	execution := time.Since(start)
-	fmt.Println(execution)
+	fmt.Println("Finished in: ", execution)
 	return nil
 
 }
