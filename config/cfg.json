@@ -1,0 +1,10 @@
+{
+	"model":"gpt-3.5-turbo-1106",
+	"language":"english",
+	"sourceFile":"db/example.csv",
+	"tokenLimName":30,
+    "tokenLimDescript":200,
+    "temp":0.2,
+	"APIKey":"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",
+    "APIEndpoint":"https://api.openai.com/v1/chat/completions"
+}

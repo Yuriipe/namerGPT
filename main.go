@@ -7,11 +7,13 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gocarina/gocsv"
+	"github.com/tkanos/gonfig"
 )
 
 type Product struct {
@@ -23,13 +25,14 @@ type Product struct {
 type NamerGPTConfig struct {
 	NameQuery        string
 	DescriptQuery    string
-	Model            string
-	Language         string
-	SourceFile       string
-	TokenLimName     int
-	TokenLimDescript int
-	Temp             float64
-	APIKey           string
+	Model            string  `json:"model"`
+	Language         string  `json:"language"`
+	SourceFile       string  `json:"sourceFile"`
+	TokenLimName     int     `json:"tokenLimName"`
+	TokenLimDescript int     `json:"tokenLimDescript"`
+	Temp             float64 `json:"temp"`
+	APIKey           string  `json:"APIKey"`
+	APIEndpoint      string  `json:"APIEndpoint"`
 	ResponseFileName string
 	Debug            bool
 }
@@ -38,10 +41,6 @@ type NamerGPT struct {
 	cfg   NamerGPTConfig
 	resty *resty.Client
 }
-
-const (
-	apiEndpoint = "https://api.openai.com/v1/chat/completions"
-)
 
 func (gpt *NamerGPT) questionGPT(query string, tokenLimit int) string {
 	response, err := gpt.resty.R().
@@ -56,7 +55,7 @@ func (gpt *NamerGPT) questionGPT(query string, tokenLimit int) string {
 			"max_tokens":  tokenLimit,
 			"temperature": gpt.cfg.Temp,
 		}).
-		Post(apiEndpoint)
+		Post(gpt.cfg.APIEndpoint)
 
 	if err != nil {
 		log.Fatalf("Error while sending send the request: %v", err)
@@ -73,11 +72,11 @@ func (gpt *NamerGPT) questionGPT(query string, tokenLimit int) string {
 
 	// Extract the content from the JSON response
 	content := data["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
-	return content
-
+	return strings.ReplaceAll(content, "\n", "")
 }
 
 func (gpt *NamerGPT) changeName(n string, wg *sync.WaitGroup, result chan<- string) {
+	gpt.cfg.NameQuery = "translate to " + gpt.cfg.Language
 	defer wg.Done()
 
 	q := gpt.cfg.NameQuery + n
@@ -86,6 +85,7 @@ func (gpt *NamerGPT) changeName(n string, wg *sync.WaitGroup, result chan<- stri
 }
 
 func (gpt *NamerGPT) generateDescription(n string, wg *sync.WaitGroup, result chan<- string) {
+	gpt.cfg.DescriptQuery = "generate produkt description in" + gpt.cfg.Language + "for:" + gpt.cfg.NameQuery
 	defer wg.Done()
 
 	q := gpt.cfg.DescriptQuery + n
@@ -94,6 +94,7 @@ func (gpt *NamerGPT) generateDescription(n string, wg *sync.WaitGroup, result ch
 }
 
 func (gpt *NamerGPT) Process(product Product, csvWriter *csv.Writer, wg *sync.WaitGroup) {
+
 	defer wg.Done()
 
 	newName := make(chan string)
@@ -102,6 +103,7 @@ func (gpt *NamerGPT) Process(product Product, csvWriter *csv.Writer, wg *sync.Wa
 	var innerWg sync.WaitGroup
 
 	innerWg.Add(2)
+	// fmt.Println(gpt.cfg.NameQuery)
 	go gpt.changeName(product.Name, &innerWg, newName)
 	go gpt.generateDescription(product.Name, &innerWg, newDesc)
 
@@ -121,8 +123,6 @@ func (gpt *NamerGPT) Process(product Product, csvWriter *csv.Writer, wg *sync.Wa
 	}
 }
 
-// func speedGPTTest() string {}
-
 func main() {
 	if err := doMain(); err != nil {
 		panic(err)
@@ -132,23 +132,23 @@ func main() {
 func doMain() error {
 	// execution timer
 
+	fmt.Println("Start processing")
 	// "gpt-3.5-turbo-0301" - 3m 25s : 90 v : 30 t : 0.2 temp
 	// "gpt-3.5-turbo-16k-0613" - 5m 14s : 90 v : 30 t : 0.2 temp
 	// "gpt-3.5-turbo-1106" - 3m 25s : 90 v : 30 t : 0.1 temp
-	cfg := NamerGPTConfig{
-		APIKey:           "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",
-		Model:            "gpt-3.5-turbo-1106",
-		Language:         "french",
-		SourceFile:       "db/tested.csv",
-		TokenLimName:     30,
-		TokenLimDescript: 200,
-		Temp:             0.2,
+	cfg := NamerGPTConfig{}
+
+	// getting environmental variables
+	err := gonfig.GetConf("config/cfg.json", &cfg)
+	if err != nil {
+		panic(err)
 	}
-	cfg.NameQuery = "translate to " + cfg.Language
-	cfg.DescriptQuery = "generate produkt description in" + cfg.Language + "for:"
-	cfg.ResponseFileName = "resp_" + cfg.Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
 
 	gpt := &NamerGPT{cfg: cfg, resty: resty.New()}
+
+	// cfg.NameQuery = "translate to " + cfg.Language
+	// cfg.DescriptQuery = "generate produkt description in" + cfg.Language + "for:" + cfg.NameQuery
+	cfg.ResponseFileName = "resp_" + cfg.Language + "_" + strconv.Itoa(time.Now().Minute()) + "." + strconv.Itoa(time.Now().Second()) + ".csv"
 
 	start := time.Now()
 
@@ -166,6 +166,7 @@ func doMain() error {
 	}
 
 	// creating new file to write csv values
+	fmt.Printf("Creating new csv response file: %s\n", cfg.ResponseFileName)
 	intoFile, err := os.Create(cfg.ResponseFileName)
 	if err != nil {
 		return fmt.Errorf("file was not created. Check settings")
@@ -179,7 +180,6 @@ func doMain() error {
 
 	var wg sync.WaitGroup
 	//processing query to chat GPT and writing product data to csv
-
 	for _, product := range products {
 		wg.Add(1)
 		gpt.Process(*product, csvWriter, &wg)
